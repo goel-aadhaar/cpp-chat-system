@@ -1,0 +1,18 @@
+# Build artifacts
+*.o
+*.exe
+*.out
+chatApp
+clientApp
+
+# Debug / crash files
+core
+core.*
+
+# Editor settings
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
