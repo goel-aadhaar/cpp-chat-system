@@ -205,7 +205,7 @@
 </div>
 
 <script>
-    const ws = new WebSocket("ws://localhost:8080");
+    let ws;
     const chatContainer = document.getElementById("chat-container");
     const msgInput = document.getElementById("msg-input");
     const sendBtn = document.getElementById("send-btn");
@@ -214,7 +214,24 @@
 
     let myUsername = "";
 
-    ws.onmessage = (event) => {
+    async function init() {
+        try {
+            const response = await fetch('/api/config');
+            const config = await response.json();
+            connectWebSocket(config.wsUrl);
+        } catch (error) {
+            console.error("Failed to load config, defaulting to localhost", error);
+            connectWebSocket("ws://localhost:8080");
+        }
+    }
+
+    function connectWebSocket(url) {
+        ws = new WebSocket(url);
+        setupWebSocketHandlers();
+    }
+
+    function setupWebSocketHandlers() {
+        ws.onmessage = (event) => {
         const data = event.data;
         if (data.startsWith("JOINED:")) {
             const name = data.substring(7);
@@ -251,6 +268,7 @@
         console.error("WebSocket error:", error);
         addSystemMessage("Connection error occurred");
     };
+    }
 
     function joinChat() {
         const name = usernameInput.value.trim();
@@ -330,6 +348,8 @@
     function scrollToBottom() {
         chatContainer.scrollTop = chatContainer.scrollHeight;
     }
+
+    init();
 </script>
 
 </body>
