@@ -1,7 +1,7 @@
 CXX = g++
-CXXFLAGS = -std=c++20 -Wall -Wextra -g
-LDFLAGS = -pthread
-LDLIBS = -lboost_system -lboost_thread
+CXXFLAGS = -std=c++14 -Wall -Wextra -g -I C:\boost_1_90_0
+LDFLAGS = 
+LDLIBS = -lws2_32 -lmswsock
 
 # Source files
 SERVER_SRC = chat-room.cpp

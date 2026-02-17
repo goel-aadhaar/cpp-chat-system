@@ -1,110 +1,59 @@
-# Async TCP Chat Server in C++ (Boost.Asio)
+# Real-Time Chat Application (C++ & WebSocket)
 
-An **asynchronous multi-client TCP chat server and client** built using **C++ and Boost.Asio**.  
-This project demonstrates how real-time messaging systems work **below WebSockets**, using raw TCP, manual message framing, and non-blocking I/O.
+A high-performance chat application built from scratch to demonstrate low-level network programming with C++. It bridges a raw TCP C++ backend with a modern Web Frontend using a Node.js proxy.
 
----
 
-##  Features
+## 🚀 Features
+- **C++ Backend**: Asynchronous TCP server using `Boost.Asio` for high-concurrency handling.
+- **Node.js Bridge**: Translates WebSocket traffic (Browser) to raw TCP (C++ Server).
+- **Modern UI**: "Fair Dark Theme" frontend with real-time message updates.
+- **Usernames**: Custom username support with system notifications (Join/Leave).
+- **Protocol**: Custom text-based protocol (`JOIN`, `MSG`, `LEFT`).
 
-- Asynchronous, non-blocking networking with **Boost.Asio**
-- Multiple clients supported concurrently
-- Broadcast messages to all connected clients except the sender
-- Safe async write queue (no overlapping writes, no segfaults)
-- Simple newline-based protocol (`\n`)
-- Clean separation of responsibilities:
-  - **Session** → one client connection
-  - **Room** → broadcast hub
-
----
-
-##  Architecture Overview
-
-```
-Client ──▶ Session ──▶ Room ──▶ Other Sessions ──▶ Clients
+## 🛠️ Architecture
+```mermaid
+graph LR
+    A[Web Client\n(Browser)] -- WebSocket --> B[Node.js Bridge]
+    B -- Raw TCP --> C[C++ Backend]
+    C -- Raw TCP --> B
+    B -- WebSocket --> A
 ```
 
----
+## 📋 Prerequisites
+- **C++ Compiler**: MinGW (g++) or similar supporting C++14.
+- **Boost Libraries**: Required for `asio`. (Project configured for `C:\boost_1_90_0`).
+- **Node.js**: For the bridge server.
 
-##  Project Structure
+## ⚙️ Build & Run
 
+### 1. Backend (C++)
+Navigate to `backend-cpp` and compile:
+```cmd
+cd backend-cpp
+build
 ```
-chat-room-cpp/
-├── chat-room.hpp
-├── chat-room.cpp
-├── message.hpp
-├── client.cpp
-├── Makefile
-├── .gitignore
-└── README.md
-```
+*(`build.bat` wraps the g++ command: `g++ -std=c++14 -I C:\boost_1_90_0 ...`)*
 
----
-
-##  Requirements
-
-- C++20 compatible compiler (`g++`)
-- Boost (Asio is header-only)
-- Linux / WSL / MSYS2 recommended
-
----
-
-##  Build
-
-```bash
-make
+Run the server:
+```cmd
+chat_server 9099
 ```
 
-Clean build artifacts:
-```bash
-make clean
+### 2. Bridge Server (Node.js)
+Navigate to `bridge-server`:
+```cmd
+cd bridge-server
+node bridge.js
 ```
 
----
+### 3. Frontend
+Open `web-client/index.html` in your browser. Enter a username and start chatting!
 
-##  Run the Server
+## 📝 Protocol
+- **JOIN**: `JOIN:Username` (Client -> Server)
+- **MSG**: `MSG:Content` (Client -> Server) -> `MSG:Username:Content` (Broadcast)
+- **LEFT**: `LEFT:Username` (Server Broadcast on disconnect)
 
-```bash
-./chatApp 9099
-```
-
----
-
-##  Run Clients
-
-```bash
-./clientApp 9099
-```
-
----
-
-##  Message Protocol
-
-- Messages are newline (`\n`) delimited
-- Internally uses a small fixed-size header for framing
-- Client strips the header before displaying messages
-
----
-
-## Comparison to WebSockets
-
-| WebSockets (JS) | This Project (C++) |
-|-----------------|--------------------|
-| Automatic framing | Manual framing |
-| Garbage collected | Manual memory safety |
-| High-level API | Low-level control |
-
----
-
-## Future Improvements
-
-- Full binary header + body protocol
-- Usernames and join/leave notifications
-- Thread pool support
-- TLS support
-
----
-
-## License
-
+## 📄 License
 MIT
+.md

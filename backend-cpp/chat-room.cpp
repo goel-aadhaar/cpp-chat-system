@@ -4,12 +4,16 @@
 Session::Session(tcp::socket s, Room &room)
     : clientSocket(std::move(s)), room(room) {}
 
+Session::~Session() {
+    // Destructor
+}
+
 void Room::join(ParticipantPtr participant) {
-    this->participants.insert(participant);
+    participants.insert(participant);
 }
 
 void Room::leave(ParticipantPtr participant) {
-    this->participants.erase(participant);
+    participants.erase(participant);
 }
 
 void Room::deliver(ParticipantPtr participant, Message &message) {
@@ -20,39 +24,64 @@ void Room::deliver(ParticipantPtr participant, Message &message) {
     }
 }
 
+void Room::broadcast(Message &message) {
+    for (ParticipantPtr p : participants) {
+        p->deliver(message);
+    }
+}
 
 void Session::async_read() {
     auto self(shared_from_this());
-    boost::asio::async_read_until(clientSocket , buffer , "\n" , [this , self](boost::system::error_code ec , std::size_t bytes_transferred) {
-        if(!ec) {
-            std::string data(boost::asio::buffers_begin(buffer.data()),
-            boost::asio::buffers_begin(buffer.data()) + bytes_transferred);
+    boost::asio::async_read_until(clientSocket, buffer, "\n", 
+        [this, self](boost::system::error_code ec, std::size_t bytes_transferred) {
+            if(!ec) {
+                std::string data(boost::asio::buffers_begin(buffer.data()),
+                                 boost::asio::buffers_begin(buffer.data()) + bytes_transferred);
+                buffer.consume(bytes_transferred);
 
-            buffer.consume(bytes_transferred);
-            std::cout<<"Recieved: "<< data<<std::endl;
-            Message message(data);
-            room.deliver(shared_from_this(), message);
-            async_read();
-        } else {
-            room.leave(shared_from_this());
-            if(ec == boost::asio::error::eof) {
-                std::cout<<"Connection closed by peer"<<std::endl;
+                // Trim newline for processing
+                std::string content = data;
+                while(!content.empty() && (content.back() == '\n' || content.back() == '\r')) {
+                    content.pop_back();
+                }
+
+                if (content.rfind("JOIN:", 0) == 0) {
+                    // Protocol: JOIN:Username
+                    username = content.substr(5);
+                    std::cout << "User joined: " << username << std::endl;
+                    std::string msgStr = "JOINED:" + username + "\n";
+                    Message msg(msgStr);
+                    room.broadcast(msg);
+                } 
+                else if (content.rfind("MSG:", 0) == 0) {
+                    // Protocol: MSG:Content
+                    if(!username.empty()) {
+                        std::string chatContent = content.substr(4);
+                        // Forward as: MSG:Username:Content
+                        std::string msgStr = "MSG:" + username + ":" + chatContent + "\n";
+                        Message msg(msgStr);
+                        room.deliver(shared_from_this(), msg); // Send to others
+                    }
+                }
+                
+                async_read();
             } else {
-                std::cout<<"Read error: "<<ec.message()<<std::endl;
+                // Disconnected
+                if(!username.empty()) {
+                    std::string msgStr = "LEFT:" + username + "\n";
+                    Message msg(msgStr);
+                    room.broadcast(msg);
+                }
+                room.leave(shared_from_this());
             }
-        }
-    });
+        });
 }
 
 void Session::async_write() {
     auto self(shared_from_this());
-
     boost::asio::async_write(
         clientSocket,
-        boost::asio::buffer(
-            messageQueue.front().dataPtr(),
-            messageQueue.front().dataLength()
-        ),
+        boost::asio::buffer(messageQueue.front().dataPtr(), messageQueue.front().dataLength()),
         [this, self](boost::system::error_code ec, std::size_t) {
             if(!ec) {
                 messageQueue.pop_front();
@@ -66,17 +95,11 @@ void Session::async_write() {
     );
 }
 
-
-void Session::write(Message &message) {
+void Session::deliver(Message &message) {
     messageQueue.push_back(message);
-
     if (messageQueue.size() == 1) {
         async_write();
     }
-}
-
-void Session::deliver(Message &message) {
-    write(message);
 }
 
 void Session::start() {
@@ -84,33 +107,32 @@ void Session::start() {
     async_read();
 }
 
-using boost::asio::ip::address_v4;
-
-void accept_connection(boost::asio::io_context &io , char *port , tcp::acceptor &acceptor , Room &room , const tcp::endpoint &endpoint) {
-    tcp::socket socket(io);
-    acceptor.async_accept([&](boost::system::error_code ec , tcp::socket socket) {
+void accept_connection(boost::asio::io_context &io, tcp::acceptor &acceptor, Room &room) {
+    acceptor.async_accept([&](boost::system::error_code ec, tcp::socket socket) {
         if(!ec) {
-            std::shared_ptr<Session> session = std::make_shared<Session>(std::move(socket) , room);
-            session->start();
+            std::make_shared<Session>(std::move(socket), room)->start();
         }
-        accept_connection(io , port , acceptor , room , endpoint);
+        accept_connection(io, acceptor, room);
     });
 }
 
-int main(int argc , char *argv[]) {
+int main(int argc, char *argv[]) {
     try {
         if(argc < 2) {
-            std::cerr<<"Usage: server <port>";
+            std::cerr << "Usage: server <port>\n";
             return 1;
         }
         Room room;
         boost::asio::io_context io;
-        tcp::endpoint endpoint(tcp::v4() , atoi(argv[1]));
-        tcp::acceptor acceptor(io , endpoint);
-        accept_connection(io , argv[1] , acceptor , room , endpoint);
+        tcp::endpoint endpoint(tcp::v4(), std::atoi(argv[1]));
+        tcp::acceptor acceptor(io, endpoint);
+        
+        std::cout << "Chat Server started on port " << argv[1] << std::endl;
+        
+        accept_connection(io, acceptor, room);
         io.run();
     } catch(std::exception &e) {
-        std::cerr<<"Exception: "<<e.what()<<std::endl;
+        std::cerr << "Exception: " << e.what() << std::endl;
     }
     return 0;
 }
